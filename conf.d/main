@@ -1,0 +1,93 @@
+#!/bin/sh -ex
+
+ADMIN_PASS=turnkey
+
+DB_NAME=phpbb3
+DB_PREFIX=phpbb
+
+# convenience symlinks
+ln -s /usr/share/phpbb3/www /var/www/webroot
+ln -s /etc/phpbb3 /var/www/config
+
+# start mysql server
+/etc/init.d/mysql start
+
+## ugly workaround: preseeding debconf doesn't work (package bug?)
+#cat > /etc/dbconfig-common/phpbb3.conf << EOF
+#dbc_install='true'
+#dbc_upgrade='true'
+#dbc_remove=''
+#dbc_dbtype='mysql'
+#dbc_dbuser='phpbb3'
+#dbc_dbpass='GnW2VOwHYFJm'
+#dbc_dbserver=''
+#dbc_dbport=''
+#dbc_dbname='phpbb3'
+#dbc_dbadmin='root'
+#dbc_basepath=''
+#dbc_ssl=''
+#dbc_authmethod_admin=''
+#dbc_authmethod_user=''
+#EOF
+#
+## this configures phpbb3 (incompletely installed in root.buid)
+#DEBIAN_FRONTEND=noninteractive apt-get -f install phpbb3
+
+#reconfigure phpbb3
+debconf-set-selections << EOF
+phpbb3 phpbb3/dbconfig-reinstall boolean true
+EOF
+DEBIAN_FRONTEND=noninteractive dpkg-reconfigure phpbb3
+
+# phpbb3 apache configuration
+rm -f /etc/apache2/conf.d/phpbb3.conf
+touch /etc/apache2/conf.d/phpbb3.conf
+ln -s /etc/phpbb3/apache.conf /etc/apache2/sites-available/phpbb3
+
+a2dissite default
+a2ensite phpbb3
+
+# set permissions for uploading avatars
+chown_wwwdata() {
+    mkdir -p $1
+    chown -R www-data:www-data $1
+    dpkg-statoverride --add www-data www-data 4755 $1
+}
+chown_wwwdata /var/lib/phpbb3/avatars/upload
+chown_wwwdata /var/lib/phpbb3/avatars/gallery
+
+# workaround for store permissions bug (and aufs workaround)
+DIR=/var/lib/phpbb3/store
+chmod 770 $DIR
+dpkg-statoverride --add root www-data 4770 $DIR
+mv $DIR $DIR.bak
+mv $DIR.bak $DIR
+
+# convenience execution variables
+MYSQL_BATCH="mysql --user=root --password=$MYSQL_PASS --batch"
+MYSQL_ADMIN="mysqladmin --user=root --password=$MYSQL_PASS"
+
+# set admin password
+HASHPASS=$(echo -n $ADMIN_PASS | md5sum | awk '{ print $1 }')
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_users set user_password = \"$HASHPASS\" where user_id = 2;"
+
+# create welcome post
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_topics set topic_title = 'Welcome to phpBB' where topic_id = 1;"
+
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_posts set post_subject = 'Welcome to phpBB', post_text = 'To get started, <a href=\"ucp.php?mode=login\">login</a> as <strong>admin</strong>, then proceed to the <i>Administration Control Panel</i> (link in footer)' where post_id = 1;"
+
+# misc phpbb configurations
+phpbb_config() {
+    $MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_config set config_value = '$2' where config_name = '$1';"
+}
+
+phpbb_config 'board_disable' 0
+phpbb_config 'sitename' ''
+phpbb_config 'site_desc' ''
+phpbb_config 'board_contact' 'admin@example.com'
+phpbb_config 'board_email' 'admin@example.com'
+phpbb_config 'allow_avatar_upload' '1'
+
+# stop mysql server
+/etc/init.d/mysql stop
+
