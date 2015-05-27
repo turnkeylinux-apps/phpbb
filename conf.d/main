@@ -40,11 +40,11 @@ EOF
 DEBIAN_FRONTEND=noninteractive dpkg-reconfigure phpbb3
 
 # phpbb3 apache configuration
-rm -f /etc/apache2/conf.d/phpbb3.conf
-touch /etc/apache2/conf.d/phpbb3.conf
-ln -s /etc/phpbb3/apache.conf /etc/apache2/sites-available/phpbb3
+rm -f /etc/apache2/conf-available/phpbb3.conf
+touch /etc/apache2/conf-available/phpbb3.conf
+ln -s /etc/phpbb3/apache.conf /etc/apache2/sites-available/phpbb3.conf
 
-a2dissite default
+a2dissite 000-default
 a2ensite phpbb3
 
 # set permissions for uploading avatars
