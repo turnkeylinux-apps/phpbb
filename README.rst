@@ -19,8 +19,8 @@ and on top of that:
      login credentials.
 
 - SSL support out of the box.
-- `PHPMyAdmin`_ administration frontend for MySQL (listening on
-  port 12322 - uses SSL).
+- `Adminer`_ administration frontend for MySQL (listening on port
+   12322 - uses SSL).
 - Postfix MTA (bound to localhost) to allow sending of email
   (e.g., password recovery, notifications).
 - Webmin modules for configuring Apache2, PHP and MySQL.
@@ -38,5 +38,5 @@ Credentials *(passwords set at first boot)*
 
 .. _phpBB: http://www.phpbb.com
 .. _TurnKey Core: http://www.turnkeylinux.org/core
-.. _PHPMyAdmin: http://www.phpmyadmin.net/
+.. _Adminer: http://www.adminer.org/
 .. _thread: http://www.turnkeylinux.org/forum/support/20091229/phpbb-admin-not-authorised-access-area-moderator-control-panel
