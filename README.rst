@@ -37,6 +37,6 @@ Credentials *(passwords set at first boot)*
 
 
 .. _phpBB: http://www.phpbb.com
-.. _TurnKey Core: http://www.turnkeylinux.org/core
+.. _TurnKey Core: https://www.turnkeylinux.org/core
 .. _Adminer: http://www.adminer.org/
-.. _thread: http://www.turnkeylinux.org/forum/support/20091229/phpbb-admin-not-authorised-access-area-moderator-control-panel
+.. _thread: https://www.turnkeylinux.org/forum/support/20091229/phpbb-admin-not-authorised-access-area-moderator-control-panel
