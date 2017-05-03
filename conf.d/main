@@ -12,27 +12,6 @@ ln -s /etc/phpbb3 /var/www/config
 # start mysql server
 /etc/init.d/mysql start
 
-## ugly workaround: preseeding debconf doesn't work (package bug?)
-#cat > /etc/dbconfig-common/phpbb3.conf << EOF
-#dbc_install='true'
-#dbc_upgrade='true'
-#dbc_remove=''
-#dbc_dbtype='mysql'
-#dbc_dbuser='phpbb3'
-#dbc_dbpass='GnW2VOwHYFJm'
-#dbc_dbserver=''
-#dbc_dbport=''
-#dbc_dbname='phpbb3'
-#dbc_dbadmin='root'
-#dbc_basepath=''
-#dbc_ssl=''
-#dbc_authmethod_admin=''
-#dbc_authmethod_user=''
-#EOF
-#
-## this configures phpbb3 (incompletely installed in root.buid)
-#DEBIAN_FRONTEND=noninteractive apt-get -f install phpbb3
-
 #reconfigure phpbb3
 debconf-set-selections << EOF
 phpbb3 phpbb3/dbconfig-reinstall boolean true
@@ -89,5 +68,4 @@ phpbb_config 'board_email' 'admin@example.com'
 phpbb_config 'allow_avatar_upload' '1'
 
 # stop mysql server
-/etc/init.d/mysql stop
-
+service mysql stop
