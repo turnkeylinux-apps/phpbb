@@ -1,30 +1,33 @@
 #!/bin/sh -ex
 
+ADMIN_NAME=admin
 ADMIN_PASS=turnkey
+ADMIN_EMAIL=admin@example.com
 
-DB_NAME=phpbb3
-DB_PREFIX=phpbb
+
+DB_NAME=phpbb
+DB_USER=phpbb
+DB_PASS=$(mcookie)
+
+DB_PREFIX=phpbb_
+
+SRC=/usr/local/src
+WEBROOT=/var/www/phpBB
+
+unzip $SRC/phpBB*.zip -d $(dirname $WEBROOT)
+mv $(dirname $WEBROOT)/phpBB* $WEBROOT
+rm $SRC/phpBB*.zip
+
 
 # convenience symlinks
-ln -s /usr/share/phpbb3/www /var/www/webroot
-ln -s /etc/phpbb3 /var/www/config
-
-# start mysql server
-/etc/init.d/mysql start
-
-#reconfigure phpbb3
-debconf-set-selections << EOF
-phpbb3 phpbb3/dbconfig-reinstall boolean true
-EOF
-DEBIAN_FRONTEND=noninteractive dpkg-reconfigure phpbb3
-
-# phpbb3 apache configuration
-rm -f /etc/apache2/conf-available/phpbb3.conf
-touch /etc/apache2/conf-available/phpbb3.conf
 ln -s /etc/phpbb3/apache.conf /etc/apache2/sites-available/phpbb3.conf
 
+# start apache & mysql servers
 a2dissite 000-default
 a2ensite phpbb3
+
+service mysql start
+service apache2 start
 
 # set permissions for uploading avatars
 chown_wwwdata() {
@@ -35,29 +38,66 @@ chown_wwwdata() {
 chown_wwwdata /var/lib/phpbb3/avatars/upload
 chown_wwwdata /var/lib/phpbb3/avatars/gallery
 
-# workaround for store permissions bug (and aufs workaround)
-DIR=/var/lib/phpbb3/store
-chmod 770 $DIR
-dpkg-statoverride --add root www-data 4770 $DIR
-mv $DIR $DIR.bak
-mv $DIR.bak $DIR
+chown www-data /var/www/phpBB/config.php
 
 # convenience execution variables
 MYSQL_BATCH="mysql --user=root --password=$MYSQL_PASS --batch"
 MYSQL_ADMIN="mysqladmin --user=root --password=$MYSQL_PASS"
 
+$MYSQL_ADMIN create $DB_NAME
+$MYSQL_BATCH --execute "grant all privileges on $DB_NAME.* to $DB_USER@localhost identified by '$DB_PASS'; flush privileges;"
+
+
+cat << EOF > /tmp/config.yml
+installer:
+    admin:
+        name: $ADMIN_NAME
+        password: $ADMIN_PASS
+        email: $ADMIN_EMAIL
+
+    board:
+        lang: en
+        name: TurnkeyLinux phpBB
+        description: Sample Turnkey phpBB forum
+
+    database:
+        dbms: mysqli
+        dbhost: localhost
+        dbuser: $DB_USER
+        dbpasswd: $DB_PASS
+        dbname: $DB_NAME
+        table_prefix: $DB_PREFIX
+
+    server:
+        cookie_secure: true
+        server_protocol: https://
+        force_server_vars: true
+        server_name: www.example.com
+        server_port: 443
+        script_path: /
+
+    extensions: []
+    
+EOF
+chown -R www-data /var/www/phpBB
+php /var/www/phpBB/install/phpbbcli.php install /tmp/config.yml
+
+chown -R www-data /var/www/phpBB/cache
+rm -r /var/www/phpBB/install
+
+
 # set admin password
 HASHPASS=$(echo -n $ADMIN_PASS | md5sum | awk '{ print $1 }')
-$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_users set user_password = \"$HASHPASS\" where user_id = 2;"
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}users set user_password = \"$HASHPASS\" where user_id = 2;"
 
 # create welcome post
-$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_topics set topic_title = 'Welcome to phpBB' where topic_id = 1;"
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}topics set topic_title = 'Welcome to phpBB' where topic_id = 1;"
 
-$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_posts set post_subject = 'Welcome to phpBB', post_text = 'To get started, <a href=\"ucp.php?mode=login\">login</a> as <strong>admin</strong>, then proceed to the <i>Administration Control Panel</i> (link in footer)' where post_id = 1;"
+$MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}posts set post_subject = 'Welcome to phpBB', post_text = 'To get started, <a href=\"ucp.php?mode=login\">login</a> as <strong>admin</strong>, then proceed to the <i>Administration Control Panel</i> (link in footer)' where post_id = 1;"
 
 # misc phpbb configurations
 phpbb_config() {
-    $MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}_config set config_value = '$2' where config_name = '$1';"
+    $MYSQL_BATCH --database=$DB_NAME --execute "update ${DB_PREFIX}config set config_value = '$2' where config_name = '$1';"
 }
 
 phpbb_config 'board_disable' 0
@@ -69,3 +109,4 @@ phpbb_config 'allow_avatar_upload' '1'
 
 # stop mysql server
 service mysql stop
+service apache2 stop
