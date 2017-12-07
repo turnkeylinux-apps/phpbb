@@ -76,6 +76,11 @@ installer:
         server_port: 443
         script_path: /
 
+    email:
+        enabled: true
+        smtp_host: localhost
+        smtp_port: 25
+
     extensions: []
     
 EOF
