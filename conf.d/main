@@ -35,10 +35,10 @@ chown_wwwdata() {
     chown -R www-data:www-data $1
     dpkg-statoverride --add www-data www-data 4755 $1
 }
-chown_wwwdata /var/lib/phpbb3/avatars/upload
-chown_wwwdata /var/lib/phpbb3/avatars/gallery
+chown_wwwdata $WEBROOT/images/avatars/upload
+chown_wwwdata $WEBROOT/images/avatars/gallery
 
-chown www-data /var/www/phpBB/config.php
+chown www-data $WEBROOT/config.php
 
 # convenience execution variables
 MYSQL_BATCH="mysql --user=root --password=$MYSQL_PASS --batch"
@@ -84,11 +84,12 @@ installer:
     extensions: []
     
 EOF
-chown -R www-data /var/www/phpBB
-php /var/www/phpBB/install/phpbbcli.php install /tmp/config.yml
+php $WEBROOT/install/phpbbcli.php install /tmp/config.yml
+rm /tmp/config.yml
+chown root:root $WEBROOT/config.php
 
-chown -R www-data /var/www/phpBB/cache
-rm -r /var/www/phpBB/install
+chown -R www-data $WEBROOT/cache
+rm -r $WEBROOT/install
 
 
 # set admin password
