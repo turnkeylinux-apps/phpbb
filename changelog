@@ -1,4 +1,26 @@
-turnkey-phpbb-14.2 (1) turnkey; urgency=low 
+turnkey-phpbb-15.0 (1) turnkey; urgency=low
+
+  * Update phpBB install method to upstream source (was Debian package)
+
+  * Includes phpBB 3.2.1
+
+  * Install Adminer directly from stretch/main repo
+
+  * Provide "adminer" root-like user for Adminer MySQL access
+
+  * Replace MySQL with MariaDB (drop-in MySQL replacement)
+
+  * Updated version of mysqltuner script
+
+  * Includes PHP7.0 (installed from Debian repos)
+
+  * Updated PHP default settings
+
+  * Remove phpsh (no longer maintained)
+
+ -- Stefan Davis <stefan@turnkeylinux.org>  Fri, 08 Dec 2017 09:25:23 +1100
+
+turnkey-phpbb-14.2 (1) turnkey; urgency=low
 
   * Installed security updates.
 
