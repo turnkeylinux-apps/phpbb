@@ -1,5 +1,7 @@
 #include <turnkey/base>
 #include <turnkey/lamp>
 
-phpbb3
+php-json
+php-xml
+php-gd
 
