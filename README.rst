@@ -12,11 +12,14 @@ and on top of that:
 
 - phpBB configurations:
    
-   - Installed from package management. See /var/www for links to file
-     paths.
+   - Installed from upstream source to /var/www/phpbb.
    - Uploading of avatars is supported, and enabled by default.
    - Setup an example forum, including welcome post displaying default
      login credentials.
+
+   ***Security note**: Updates to phpBB may require supervision so
+   they **ARE NOT** configured to install automatically. See `phpBB
+   documentation`_ for upgrading.
 
 - SSL support out of the box.
 - `Adminer`_ administration frontend for MySQL (listening on port
@@ -39,5 +42,6 @@ Credentials *(passwords set at first boot)*
 
 .. _phpBB: http://www.phpbb.com
 .. _TurnKey Core: https://www.turnkeylinux.org/core
+.. _phpBB documentation: https://www.phpbb.com/support/docs/en/3.0/kb/article/how-to-update-to-the-latest-version-of-phpbb3/
 .. _Adminer: http://www.adminer.org/
 .. _thread: https://www.turnkeylinux.org/forum/support/20091229/phpbb-admin-not-authorised-access-area-moderator-control-panel
