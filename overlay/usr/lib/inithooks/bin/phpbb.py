@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 """Set phpBB admin password and email
 
 Option:
@@ -20,9 +20,9 @@ from mysqlconf import MySQL
 
 def usage(s=None):
     if s:
-        print >> sys.stderr, "Error:", s
-    print >> sys.stderr, "Syntax: %s [options]" % sys.argv[0]
-    print >> sys.stderr, __doc__
+        print("Error:", s, file=sys.stderr)
+    print("Syntax: %s [options]" % sys.argv[0], file=sys.stderr)
+    print(__doc__, file=sys.stderr)
     sys.exit(1)
 
 DEFAULT_DOMAIN="www.example.com"
@@ -31,7 +31,7 @@ def main():
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:], "h",
                                        ['help', 'pass=', 'email=', 'domain='])
-    except getopt.GetoptError, e:
+    except getopt.GetoptError as e:
         usage(e)
 
     password = ""
@@ -80,11 +80,11 @@ def main():
 
     subprocess.call(['php', '/var/www/phpBB/bin/phpbbcli.php', 'config:set', 'server_name', domain])
     
-    hashpass = hashlib.md5(password).hexdigest()
+    hashpass = hashlib.md5(password.encode('utf8')).hexdigest()
 
     m = MySQL()
-    m.execute('UPDATE phpbb.phpbb_users SET user_email=\"%s\" WHERE username=\"admin\";' % email)
-    m.execute('UPDATE phpbb.phpbb_users SET user_password=\"%s\" WHERE username=\"admin\";' % hashpass)
+    m.execute('UPDATE phpbb.phpbb_users SET user_email=%s WHERE username=\"admin\";', (email,))
+    m.execute('UPDATE phpbb.phpbb_users SET user_password=%s WHERE username=\"admin\";', (hashpass,))
 
 
 
