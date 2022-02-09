@@ -24,6 +24,7 @@ ln -s /etc/phpbb3/apache.conf /etc/apache2/sites-available/phpbb3.conf
 
 # start apache & mysql servers
 a2dissite 000-default
+a2enmod headers
 a2ensite phpbb3
 
 service mysql start
