@@ -6,7 +6,7 @@ dl() {
     cd $2; curl -L -f -O $PROXY $1; cd -
 }
 VERSION="3.3"
-PATCH_VERSION="8"
+PATCH_VERSION="10"
 FULL_VERSION="$VERSION.${PATCH_VERSION}"
 URL="https://download.phpbb.com/pub/release/${VERSION}/${FULL_VERSION}/phpBB-${FULL_VERSION}.zip"
 
