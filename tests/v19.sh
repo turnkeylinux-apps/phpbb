@@ -7,6 +7,7 @@ set -euo pipefail
 base_url=https://localhost
 cookies=/tmp/phpbb-v19.cookies
 login_page=/tmp/phpbb-v19-login.html
+login_post_result=/tmp/phpbb-v19-login-post-result.html
 login_result=/tmp/phpbb-v19-login-result.html
 admin_login=/tmp/phpbb-v19-admin-login.html
 admin_result=/tmp/phpbb-v19-admin-result.html
@@ -96,6 +97,13 @@ test -d /usr/share/webmin/phpini
 ss -ltn | grep -Eq '127\.0\.0\.1:25[[:space:]]'
 test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='server_name'")" = localhost
 test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='cookie_domain'")" = localhost
+admin_hash=$(mysql --batch --skip-column-names phpbb \
+    --execute="SELECT user_password FROM phpbb_users WHERE username_clean='admin'")
+if ! php -r 'exit(password_verify(getenv("TKL_TEST_APP_PASS"), trim(stream_get_contents(STDIN))) ? 0 : 1);' \
+        <<<"$admin_hash"; then
+    echo 'phpbb_login_error=stored-password-rejected' >&2
+    exit 1
+fi
 
 printf '%s\n' phpbb_check=https
 curl "${curl_common[@]}" "$base_url/" >/tmp/phpbb-v19-index.html
@@ -105,6 +113,10 @@ grep -Eiq 'Adminer|Login' /tmp/phpbb-v19-adminer.html
 
 printf '%s\n' phpbb_check=administrator-login
 curl "${curl_common[@]}" -c "$cookies" "$base_url/ucp.php?mode=login" >"$login_page"
+if ! awk -F '\t' '$6 ~ /^phpbb3_.*_sid$/ { found = 1 } END { exit !found }' "$cookies"; then
+    echo 'phpbb_login_error=session-cookie-rejected' >&2
+    exit 1
+fi
 login_creation=$(input_value creation_time "$login_page")
 login_token=$(input_value form_token "$login_page")
 login_redirect=$(input_value redirect "$login_page")
@@ -115,16 +127,17 @@ curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
     --data-urlencode "redirect=$login_redirect" \
     --data-urlencode "creation_time=$login_creation" \
     --data-urlencode "form_token=$login_token" \
-    "$base_url/ucp.php?mode=login" >"$login_result"
+    "$base_url/ucp.php?mode=login" >"$login_post_result"
+if grep -Fq 'The specified username or password is incorrect' "$login_post_result"; then
+    echo 'phpbb_login_error=credentials-rejected' >&2
+    exit 1
+elif grep -Fq 'The submitted form was invalid' "$login_post_result"; then
+    echo 'phpbb_login_error=form-rejected' >&2
+    exit 1
+fi
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" "$base_url/" >"$login_result"
 if ! grep -Fq 'mode=logout' "$login_result"; then
-    if grep -Fq 'The specified username or password is incorrect' "$login_result"; then
-        echo 'phpbb_login_error=credentials-rejected' >&2
-    elif grep -Fq 'The submitted form was invalid' "$login_result"; then
-        echo 'phpbb_login_error=form-rejected' >&2
-    else
-        echo 'phpbb_login_error=session-not-established' >&2
-    fi
+    echo 'phpbb_login_error=session-not-established' >&2
     exit 1
 fi
 grep -Fq 'Administration Control Panel' "$login_result"
