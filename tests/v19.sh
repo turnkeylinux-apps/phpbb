@@ -10,6 +10,7 @@ login_page=/tmp/phpbb-v19-login.html
 login_post_result=/tmp/phpbb-v19-login-post-result.html
 login_result=/tmp/phpbb-v19-login-result.html
 admin_login=/tmp/phpbb-v19-admin-login.html
+admin_auth_result=/tmp/phpbb-v19-admin-auth-result.html
 admin_result=/tmp/phpbb-v19-admin-result.html
 forum_form=/tmp/phpbb-v19-forum-form.html
 forum_result=/tmp/phpbb-v19-forum-result.html
@@ -120,10 +121,13 @@ fi
 login_creation=$(input_value creation_time "$login_page")
 login_token=$(input_value form_token "$login_page")
 login_redirect=$(input_value redirect "$login_page")
+login_sid=$(input_value sid "$login_page")
+[[ $login_sid =~ ^[0-9a-f]{32}$ ]]
 curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
     --data-urlencode username=admin \
     --data-urlencode "password=$TKL_TEST_APP_PASS" \
     --data-urlencode login=Login \
+    --data-urlencode "sid=$login_sid" \
     --data-urlencode "redirect=$login_redirect" \
     --data-urlencode "creation_time=$login_creation" \
     --data-urlencode "form_token=$login_token" \
@@ -146,18 +150,28 @@ sid=$(admin_sid "$login_result")
 printf '%s\n' phpbb_check=administrator-control-panel
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
     "$base_url/adm/index.php?sid=$sid" >"$admin_login"
-if grep -Fq 'name="password"' "$admin_login"; then
+if grep -Fq 'name="credential"' "$admin_login"; then
     admin_creation=$(input_value creation_time "$admin_login")
     admin_token=$(input_value form_token "$admin_login")
     admin_redirect=$(input_value redirect "$admin_login")
+    admin_sid_field=$(input_value sid "$admin_login")
+    admin_credential=$(input_value credential "$admin_login")
+    [[ $admin_sid_field =~ ^[0-9a-f]{32}$ ]]
+    [[ $admin_credential =~ ^[0-9a-f]{32}$ ]]
     curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
         --data-urlencode username=admin \
-        --data-urlencode "password=$TKL_TEST_APP_PASS" \
+        --data-urlencode "password_$admin_credential=$TKL_TEST_APP_PASS" \
         --data-urlencode login=Login \
+        --data-urlencode "sid=$admin_sid_field" \
+        --data-urlencode "credential=$admin_credential" \
         --data-urlencode "redirect=$admin_redirect" \
         --data-urlencode "creation_time=$admin_creation" \
         --data-urlencode "form_token=$admin_token" \
-        "$base_url/adm/index.php?sid=$sid" >/tmp/phpbb-v19-admin-auth-result.html
+        "$base_url/adm/index.php?sid=$sid" >"$admin_auth_result"
+    if grep -Fq 'The submitted form was invalid' "$admin_auth_result"; then
+        echo 'phpbb_admin_login_error=form-rejected' >&2
+        exit 1
+    fi
     curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
         "$base_url/adm/index.php?sid=$sid" >"$admin_result"
 else
