@@ -288,41 +288,94 @@ printf '%s\n' phpbb_check=forum-create
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" "$forum_url" >"$forum_form"
 forum_creation=$(input_value creation_time "$forum_form")
 forum_token=$(input_value form_token "$forum_form")
+forum_action=$(form_action_url forumedit "$forum_form")
+forum_hidden=$(hidden_form_data forumedit "$forum_form")
+[[ $forum_creation =~ ^[0-9]+$ ]]
+test -n "$forum_token"
+forum_form_salt=$(mysql --batch --skip-column-names phpbb \
+    --execute="SELECT user_form_salt FROM phpbb_users WHERE username_clean='admin'")
+forum_expected_token=$(printf '%s%s%s' \
+    "$forum_creation" "$forum_form_salt" acp_forums | sha1sum | awk '{print $1}')
+if test "$forum_token" != "$forum_expected_token"; then
+    echo 'phpbb_forum_error=rendered-token-mismatch' >&2
+    exit 1
+fi
+permission_source=$(mysql --batch --skip-column-names phpbb \
+    --execute='SELECT forum_id FROM phpbb_forums WHERE forum_type=1 ORDER BY forum_id LIMIT 1')
+[[ $permission_source =~ ^[0-9]+$ ]]
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
+    --data "$forum_hidden" \
     --data-urlencode forum_parent_id=0 \
     --data-urlencode forum_type=1 \
-    --data-urlencode forum_perm_from=2 \
+    --data-urlencode "forum_perm_from=$permission_source" \
     --data-urlencode "forum_name=$forum_name" \
     --data-urlencode update=Submit \
-    --data-urlencode "creation_time=$forum_creation" \
-    --data-urlencode "form_token=$forum_token" \
-    "$forum_url" >"$forum_result"
-grep -Fq 'Forum created successfully' "$forum_result"
+    "$forum_action" >"$forum_result"
+if grep -Fq 'The submitted form was invalid' "$forum_result"; then
+    echo 'phpbb_forum_error=form-rejected' >&2
+    exit 1
+elif ! grep -Fq 'Forum created successfully' "$forum_result"; then
+    echo 'phpbb_forum_error=creation-not-confirmed' >&2
+    exit 1
+fi
 forum_id=$(mysql --batch --skip-column-names phpbb \
     --execute="SELECT forum_id FROM phpbb_forums WHERE forum_name='$forum_name'")
-[[ $forum_id =~ ^[0-9]+$ ]]
-curl "${curl_common[@]}" -b "$cookies" "$base_url/viewforum.php?f=$forum_id" >/tmp/phpbb-v19-forum.html
-grep -Fq "$forum_name" /tmp/phpbb-v19-forum.html
+if [[ ! $forum_id =~ ^[0-9]+$ ]]; then
+    echo 'phpbb_forum_error=database-row-missing' >&2
+    exit 1
+fi
+if ! curl "${curl_common[@]}" -b "$cookies" \
+        "$base_url/viewforum.php?f=$forum_id" >/tmp/phpbb-v19-forum.html; then
+    echo 'phpbb_forum_error=read-request-failed' >&2
+    exit 1
+elif ! grep -Fq "$forum_name" /tmp/phpbb-v19-forum.html; then
+    echo 'phpbb_forum_error=read-content-missing' >&2
+    exit 1
+fi
 
 printf '%s\n' phpbb_check=topic-create-read
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
     "$base_url/posting.php?mode=post&f=$forum_id" >"$posting_form"
 posting_creation=$(input_value creation_time "$posting_form")
 posting_token=$(input_value form_token "$posting_form")
+posting_action=$(form_action_url postform "$posting_form")
+posting_hidden=$(hidden_form_data postform "$posting_form")
+[[ $posting_creation =~ ^[0-9]+$ ]]
+test -n "$posting_token"
+posting_expected_token=$(printf '%s%s%s' \
+    "$posting_creation" "$forum_form_salt" posting | sha1sum | awk '{print $1}')
+if test "$posting_token" != "$posting_expected_token"; then
+    echo 'phpbb_topic_error=rendered-token-mismatch' >&2
+    exit 1
+fi
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
+    --data "$posting_hidden" \
     --data-urlencode "subject=$topic_subject" \
     --data-urlencode "message=$topic_body" \
     --data-urlencode post=Submit \
-    --data-urlencode "creation_time=$posting_creation" \
-    --data-urlencode "form_token=$posting_token" \
-    "$base_url/posting.php?mode=post&f=$forum_id" >"$posting_result"
-grep -Fq 'This message has been posted successfully' "$posting_result"
+    "$posting_action" >"$posting_result"
+if grep -Fq 'The submitted form was invalid' "$posting_result"; then
+    echo 'phpbb_topic_error=form-rejected' >&2
+    exit 1
+elif ! grep -Fq 'This message has been posted successfully' "$posting_result"; then
+    echo 'phpbb_topic_error=creation-not-confirmed' >&2
+    exit 1
+fi
 topic_id=$(mysql --batch --skip-column-names phpbb \
     --execute="SELECT topic_id FROM phpbb_topics WHERE forum_id=$forum_id AND topic_title='$topic_subject'")
-[[ $topic_id =~ ^[0-9]+$ ]]
-curl "${curl_common[@]}" -b "$cookies" "$base_url/viewtopic.php?t=$topic_id" >/tmp/phpbb-v19-topic.html
-grep -Fq "$topic_subject" /tmp/phpbb-v19-topic.html
-grep -Fq "$topic_body" /tmp/phpbb-v19-topic.html
+if [[ ! $topic_id =~ ^[0-9]+$ ]]; then
+    echo 'phpbb_topic_error=database-row-missing' >&2
+    exit 1
+fi
+if ! curl "${curl_common[@]}" -b "$cookies" \
+        "$base_url/viewtopic.php?t=$topic_id" >/tmp/phpbb-v19-topic.html; then
+    echo 'phpbb_topic_error=read-request-failed' >&2
+    exit 1
+elif ! grep -Fq "$topic_subject" /tmp/phpbb-v19-topic.html || \
+        ! grep -Fq "$topic_body" /tmp/phpbb-v19-topic.html; then
+    echo 'phpbb_topic_error=read-content-missing' >&2
+    exit 1
+fi
 
 printf '%s\n' phpbb_check=database
 installed=$(php /var/www/phpBB/bin/phpbbcli.php config:get version --no-newline)
