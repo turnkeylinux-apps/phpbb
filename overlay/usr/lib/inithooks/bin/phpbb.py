@@ -77,11 +77,15 @@ def main():
 
     inithooks_cache.write('APP_DOMAIN', domain)
 
-    subprocess.run(
-        ['php', '/var/www/phpBB/bin/phpbbcli.php', 'config:set',
-         'server_name', domain],
-        check=True,
-    )
+    cookie_domain = domain[4:] if domain.lower().startswith('www.') else domain
+    for name, value in (
+            ('server_name', domain),
+            ('cookie_domain', cookie_domain)):
+        subprocess.run(
+            ['php', '/var/www/phpBB/bin/phpbbcli.php', 'config:set',
+             name, value],
+            check=True,
+        )
     hashpass = subprocess.run(
         ['php', '-r',
          'echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],

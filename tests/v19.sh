@@ -94,6 +94,8 @@ test -d /usr/share/webmin/apache
 test -d /usr/share/webmin/mysql
 test -d /usr/share/webmin/phpini
 ss -ltn | grep -Eq '127\.0\.0\.1:25[[:space:]]'
+test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='server_name'")" = localhost
+test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='cookie_domain'")" = localhost
 
 printf '%s\n' phpbb_check=https
 curl "${curl_common[@]}" "$base_url/" >/tmp/phpbb-v19-index.html
@@ -115,7 +117,16 @@ curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
     --data-urlencode "form_token=$login_token" \
     "$base_url/ucp.php?mode=login" >"$login_result"
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" "$base_url/" >"$login_result"
-grep -Fq 'mode=logout' "$login_result"
+if ! grep -Fq 'mode=logout' "$login_result"; then
+    if grep -Fq 'The specified username or password is incorrect' "$login_result"; then
+        echo 'phpbb_login_error=credentials-rejected' >&2
+    elif grep -Fq 'The submitted form was invalid' "$login_result"; then
+        echo 'phpbb_login_error=form-rejected' >&2
+    else
+        echo 'phpbb_login_error=session-not-established' >&2
+    fi
+    exit 1
+fi
 grep -Fq 'Administration Control Panel' "$login_result"
 sid=$(admin_sid "$login_result")
 
