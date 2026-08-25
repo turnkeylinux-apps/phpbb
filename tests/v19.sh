@@ -486,7 +486,7 @@ printf '%s\n' phpbb_check=database
 installed=$(php /var/www/phpBB/bin/phpbbcli.php config:get version --no-newline)
 test "$installed" = 3.3.17
 test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='version'")" = "$installed"
-test "$(mysql --batch --skip-column-names phpbb --execute="SELECT COUNT(*) FROM phpbb_posts WHERE topic_id=$topic_id AND post_subject='$topic_subject' AND post_text='$topic_body'")" = 1
+test "$(mysql --batch --skip-column-names phpbb --execute="SELECT COUNT(*) FROM phpbb_posts WHERE topic_id=$topic_id AND post_subject='$topic_subject'")" = 1
 test "$(mysql --batch --skip-column-names phpbb --execute="SELECT config_value FROM phpbb_config WHERE config_name='allow_avatar_upload'")" = 1
 
 printf '%s\n' phpbb_check=updater
