@@ -355,10 +355,16 @@ if grep -Fq 'name="credential"' "$admin_login"; then
         echo 'phpbb_admin_login_error=form-rejected' >&2
         exit 1
     fi
+    sid=$(session_cookie_sid)
+    [[ $sid =~ ^[0-9a-f]{32}$ ]]
     curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
         "$base_url/adm/index.php?sid=$sid" >"$admin_result"
 else
     cp "$admin_login" "$admin_result"
+fi
+if grep -Fq 'name="credential"' "$admin_result"; then
+    echo 'phpbb_admin_login_error=session-not-established' >&2
+    exit 1
 fi
 grep -Fq 'Administration Control Panel' "$admin_result"
 grep -Fq 'id="page-header"' "$admin_result"
