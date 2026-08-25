@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+
+PHPBB_ROOT=/var/www/phpBB
+BRANCH=3.3
+INDEX_URL="https://download.phpbb.com/pub/release/$BRANCH/"
+
+installed=$(php "$PHPBB_ROOT/bin/phpbbcli.php" config:get version --no-newline)
+index=$(curl --fail --silent --show-error --location "$INDEX_URL")
+latest=$(sed -nE 's#.*href="([0-9]+\.[0-9]+\.[0-9]+)/".*#\1#p' <<<"$index" |
+    sort --version-sort | tail -n 1)
+
+if [[ -z $latest ]]; then
+    echo "Unable to identify a stable phpBB release from $INDEX_URL" >&2
+    exit 1
+fi
+
+archive="phpBB-$latest.zip"
+release_url="${INDEX_URL}${latest}/$archive"
+checksum_url="$release_url.sha256"
+checksum_line=$(curl --fail --silent --show-error --location "$checksum_url")
+read -r checksum checksum_name extra <<<"$checksum_line"
+
+if [[ ! $checksum =~ ^[0-9a-f]{64}$ || $checksum_name != "$archive" || -n ${extra:-} ]]; then
+    echo "Invalid official checksum response from $checksum_url" >&2
+    exit 1
+fi
+
+printf 'installed=%s\n' "$installed"
+printf 'latest=%s\n' "$latest"
+printf 'channel=%s\n' "$INDEX_URL"
+printf 'package=%s\n' "$release_url"
+printf 'sha256=%s\n' "$checksum"

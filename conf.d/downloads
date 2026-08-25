@@ -1,13 +1,15 @@
 #!/bin/bash -ex
 
+VERSION="3.3.17"
+BRANCH="3.3"
+ARCHIVE="phpBB-${VERSION}.zip"
+URL="https://download.phpbb.com/pub/release/${BRANCH}/${VERSION}/${ARCHIVE}"
+SHA256="ba1819a53c6a36bb9ebce8d3d0ac6c1b28687d6aa07a2ce9d8c4956da7d38874"
 
-dl() {
-    [ "$FAB_HTTP_PROXY" ] && PROXY="--proxy $FAB_HTTP_PROXY"
-    cd $2; curl -L -f -O $PROXY $1; cd -
-}
-VERSION="3.3"
-PATCH_VERSION="11"
-FULL_VERSION="$VERSION.${PATCH_VERSION}"
-URL="https://download.phpbb.com/pub/release/${VERSION}/${FULL_VERSION}/phpBB-${FULL_VERSION}.zip"
+curl_args=(--fail --location --output "/usr/local/src/${ARCHIVE}")
+if [[ -n ${FAB_HTTP_PROXY:-} ]]; then
+    curl_args+=(--proxy "$FAB_HTTP_PROXY")
+fi
 
-dl $URL /usr/local/src
+curl "${curl_args[@]}" "$URL"
+printf '%s  %s\n' "$SHA256" "/usr/local/src/${ARCHIVE}" | sha256sum --check --strict -

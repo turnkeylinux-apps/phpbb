@@ -12,7 +12,6 @@ Option:
 import sys
 import getopt
 from libinithooks import inithooks_cache
-import hashlib
 import subprocess
 
 from libinithooks.dialog_wrapper import Dialog
@@ -78,9 +77,21 @@ def main():
 
     inithooks_cache.write('APP_DOMAIN', domain)
 
-    subprocess.call(['php', '/var/www/phpBB/bin/phpbbcli.php', 'config:set', 'server_name', domain])
-    
-    hashpass = hashlib.md5(password.encode('utf8')).hexdigest()
+    subprocess.run(
+        ['php', '/var/www/phpBB/bin/phpbbcli.php', 'config:set',
+         'server_name', domain],
+        check=True,
+    )
+    hashpass = subprocess.run(
+        ['php', '-r',
+         'echo password_hash(stream_get_contents(STDIN), PASSWORD_DEFAULT);'],
+        input=password,
+        text=True,
+        check=True,
+        capture_output=True,
+    ).stdout
+    if not hashpass:
+        raise RuntimeError('phpBB password hashing returned an empty value')
 
     m = MySQL()
     m.execute('UPDATE phpbb.phpbb_users SET user_email=%s WHERE username=\"admin\";', (email,))
@@ -90,4 +101,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

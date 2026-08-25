@@ -1,8 +1,7 @@
 #include <turnkey/base>
 #include <turnkey/lamp>
 
-php-json
 php-xml
 php-gd
 php-mbstring
-
+php-curl

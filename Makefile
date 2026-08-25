@@ -1,4 +1,3 @@
-root.build/ignore-errors = phpbb3
 COMMON_CONF = apache-credit
 
 CREDIT_ANCHORTEXT = phpBB Appliance
