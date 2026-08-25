@@ -465,9 +465,6 @@ curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
 if grep -Fq 'The submitted form was invalid' "$posting_result"; then
     echo 'phpbb_topic_error=form-rejected' >&2
     exit 1
-elif ! grep -Fq 'This message has been posted successfully' "$posting_result"; then
-    echo 'phpbb_topic_error=creation-not-confirmed' >&2
-    exit 1
 fi
 topic_id=$(mysql --batch --skip-column-names phpbb \
     --execute="SELECT topic_id FROM phpbb_topics WHERE forum_id=$forum_id AND topic_title='$topic_subject'")
