@@ -134,6 +134,13 @@ session_cookie_sid() {
     ' "$cookies"
 }
 
+wait_for_form_time() {
+    local creation_time=$1
+    while (( $(date +%s) <= creation_time )); do
+        sleep 0.1
+    done
+}
+
 forum_manage_url() {
     local file=$1
     python3 - "$file" "$base_url/adm/" <<'PY'
@@ -241,6 +248,7 @@ if test "$(session_cookie_sid)" != "$login_sid"; then
     echo 'phpbb_login_error=session-state-mismatch' >&2
     exit 1
 fi
+wait_for_form_time "$login_creation"
 curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
     --data "$login_hidden" \
     --data-urlencode username=admin \
@@ -295,6 +303,7 @@ if grep -Fq 'name="credential"' "$admin_login"; then
         echo 'phpbb_admin_login_error=rendered-token-mismatch' >&2
         exit 1
     fi
+    wait_for_form_time "$admin_creation"
     curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
         --data "$admin_hidden" \
         --data-urlencode username=admin \
@@ -338,6 +347,7 @@ fi
 permission_source=$(mysql --batch --skip-column-names phpbb \
     --execute='SELECT forum_id FROM phpbb_forums WHERE forum_type=1 ORDER BY forum_id LIMIT 1')
 [[ $permission_source =~ ^[0-9]+$ ]]
+wait_for_form_time "$forum_creation"
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
     --data "$forum_hidden" \
     --data-urlencode forum_parent_id=0 \
@@ -383,6 +393,7 @@ if test "$posting_token" != "$posting_expected_token"; then
     echo 'phpbb_topic_error=rendered-token-mismatch' >&2
     exit 1
 fi
+wait_for_form_time "$posting_creation"
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
     --data "$posting_hidden" \
     --data-urlencode "subject=$topic_subject" \
