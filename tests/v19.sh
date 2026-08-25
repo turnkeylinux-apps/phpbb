@@ -86,7 +86,7 @@ if not parser.found:
     raise SystemExit(f"missing form {sys.argv[1]} in {sys.argv[2]}")
 if not parser.action and not sys.argv[4]:
     raise SystemExit(f"missing action for form {sys.argv[1]} in {sys.argv[2]}")
-print(urljoin(sys.argv[3], parser.action or sys.argv[4]))
+print(urljoin(sys.argv[4] or sys.argv[3], parser.action or sys.argv[4]))
 PY
 }
 
@@ -324,7 +324,8 @@ if grep -Fq 'name="credential"' "$admin_login"; then
     admin_redirect=$(input_value redirect "$admin_login")
     admin_sid_field=$(input_value sid "$admin_login")
     admin_credential=$(input_value credential "$admin_login")
-    admin_action=$(form_action_url login "$admin_login")
+    admin_action=$(form_action_url login "$admin_login" \
+        "$base_url/adm/index.php?sid=$sid")
     admin_hidden=$(hidden_form_data login "$admin_login")
     [[ $admin_sid_field =~ ^[0-9a-f]{32}$ ]]
     [[ $admin_credential =~ ^[0-9a-f]{32}$ ]]
