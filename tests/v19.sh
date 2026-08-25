@@ -354,6 +354,15 @@ if grep -Fq 'name="credential"' "$admin_login"; then
     if grep -Fq 'The submitted form was invalid' "$admin_auth_result"; then
         echo 'phpbb_admin_login_error=form-rejected' >&2
         exit 1
+    elif grep -Fq 'incorrect password' "$admin_auth_result"; then
+        echo 'phpbb_admin_login_error=credential-rejected' >&2
+        exit 1
+    elif grep -Fq 'maximum allowed number of login attempts' "$admin_auth_result"; then
+        echo 'phpbb_admin_login_error=rate-limited' >&2
+        exit 1
+    elif grep -Fq 'name="credential"' "$admin_auth_result"; then
+        echo 'phpbb_admin_login_error=authentication-rejected' >&2
+        exit 1
     fi
     sid=$(session_cookie_sid)
     [[ $sid =~ ^[0-9a-f]{32}$ ]]
