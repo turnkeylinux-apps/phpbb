@@ -12,6 +12,7 @@ login_result=/tmp/phpbb-v19-login-result.html
 admin_login=/tmp/phpbb-v19-admin-login.html
 admin_auth_result=/tmp/phpbb-v19-admin-auth-result.html
 admin_result=/tmp/phpbb-v19-admin-result.html
+forum_admin=/tmp/phpbb-v19-forum-admin.html
 forum_form=/tmp/phpbb-v19-forum-form.html
 forum_result=/tmp/phpbb-v19-forum-result.html
 posting_form=/tmp/phpbb-v19-posting-form.html
@@ -171,6 +172,46 @@ print(urljoin(sys.argv[2], parser.href))
 PY
 }
 
+forum_tab_url() {
+    local file=$1
+    python3 - "$file" "$base_url/adm/" <<'PY'
+from html.parser import HTMLParser
+from urllib.parse import urljoin
+import sys
+
+
+class ForumTabFinder(HTMLParser):
+    href = None
+    current_href = None
+    text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self.current_href = dict(attrs).get("href", "")
+            self.text = []
+
+    def handle_data(self, data):
+        if self.current_href is not None:
+            self.text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag != "a" or self.current_href is None:
+            return
+        if " ".join("".join(self.text).split()).casefold() == "forums":
+            self.href = self.current_href
+        self.current_href = None
+        self.text = []
+
+
+parser = ForumTabFinder()
+with open(sys.argv[1], encoding="utf-8") as source:
+    parser.feed(source.read())
+if not parser.href:
+    raise SystemExit(f"missing Forums tab in {sys.argv[1]}")
+print(urljoin(sys.argv[2], parser.href))
+PY
+}
+
 admin_sid() {
     local file=$1
     python3 - "$file" <<'PY'
@@ -326,7 +367,10 @@ stamp=$(date +%s)-$$
 forum_name=phpbb-v19-forum-$stamp
 topic_subject=phpbb-v19-topic-$stamp
 topic_body=phpbb-v19-body-$stamp
-forum_url="$(forum_manage_url "$admin_result")&action=add&parent_id=0"
+forum_tab="$(forum_tab_url "$admin_result")"
+curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
+    "$forum_tab" >"$forum_admin"
+forum_url="$(forum_manage_url "$forum_admin")&action=add&parent_id=0"
 
 printf '%s\n' phpbb_check=forum-create
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" "$forum_url" >"$forum_form"
