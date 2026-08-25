@@ -55,6 +55,80 @@ print(html.unescape(parser.value))
 PY
 }
 
+form_action_url() {
+    local form_id=$1
+    local file=$2
+    python3 - "$form_id" "$file" "$base_url/" <<'PY'
+from html.parser import HTMLParser
+from urllib.parse import urljoin
+import sys
+
+
+class FormFinder(HTMLParser):
+    action = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "form" or self.action is not None:
+            return
+        fields = dict(attrs)
+        if fields.get("id") == sys.argv[1]:
+            self.action = fields.get("action", "")
+
+
+parser = FormFinder()
+with open(sys.argv[2], encoding="utf-8") as source:
+    parser.feed(source.read())
+if not parser.action:
+    raise SystemExit(f"missing action for form {sys.argv[1]} in {sys.argv[2]}")
+print(urljoin(sys.argv[3], parser.action))
+PY
+}
+
+hidden_form_data() {
+    local form_id=$1
+    local file=$2
+    python3 - "$form_id" "$file" <<'PY'
+from html.parser import HTMLParser
+from urllib.parse import urlencode
+import sys
+
+
+class HiddenInputFinder(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.fields = []
+        self.in_form = False
+
+    def handle_starttag(self, tag, attrs):
+        fields = dict(attrs)
+        if tag == "form":
+            self.in_form = fields.get("id") == sys.argv[1]
+        elif (self.in_form and tag == "input"
+              and fields.get("type", "").lower() == "hidden"
+              and "name" in fields):
+            self.fields.append((fields["name"], fields.get("value", "")))
+
+    def handle_endtag(self, tag):
+        if tag == "form" and self.in_form:
+            self.in_form = False
+
+
+parser = HiddenInputFinder()
+with open(sys.argv[2], encoding="utf-8") as source:
+    parser.feed(source.read())
+if not parser.fields:
+    raise SystemExit(f"missing hidden inputs for form {sys.argv[1]} in {sys.argv[2]}")
+print(urlencode(parser.fields))
+PY
+}
+
+session_cookie_sid() {
+    awk -F '\t' '
+        $6 ~ /^phpbb3_.*_sid$/ { value = $7 }
+        END { if (value == "") exit 1; print value }
+    ' "$cookies"
+}
+
 admin_sid() {
     local file=$1
     python3 - "$file" <<'PY'
@@ -122,16 +196,22 @@ login_creation=$(input_value creation_time "$login_page")
 login_token=$(input_value form_token "$login_page")
 login_redirect=$(input_value redirect "$login_page")
 login_sid=$(input_value sid "$login_page")
+login_action=$(form_action_url login "$login_page")
+login_hidden=$(hidden_form_data login "$login_page")
 [[ $login_sid =~ ^[0-9a-f]{32}$ ]]
+[[ $login_creation =~ ^[0-9]+$ ]]
+test -n "$login_token"
+test -n "$login_redirect"
+if test "$(session_cookie_sid)" != "$login_sid"; then
+    echo 'phpbb_login_error=session-state-mismatch' >&2
+    exit 1
+fi
 curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
+    --data "$login_hidden" \
     --data-urlencode username=admin \
     --data-urlencode "password=$TKL_TEST_APP_PASS" \
     --data-urlencode login=Login \
-    --data-urlencode "sid=$login_sid" \
-    --data-urlencode "redirect=$login_redirect" \
-    --data-urlencode "creation_time=$login_creation" \
-    --data-urlencode "form_token=$login_token" \
-    "$base_url/ucp.php?mode=login" >"$login_post_result"
+    "$login_action" >"$login_post_result"
 if grep -Fq 'The specified username or password is incorrect' "$login_post_result"; then
     echo 'phpbb_login_error=credentials-rejected' >&2
     exit 1
@@ -146,6 +226,10 @@ if ! grep -Fq 'mode=logout' "$login_result"; then
 fi
 grep -Fq 'Administration Control Panel' "$login_result"
 sid=$(admin_sid "$login_result")
+if test "$(session_cookie_sid)" != "$sid"; then
+    echo 'phpbb_admin_login_error=session-link-mismatch' >&2
+    exit 1
+fi
 
 printf '%s\n' phpbb_check=administrator-control-panel
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
@@ -156,18 +240,32 @@ if grep -Fq 'name="credential"' "$admin_login"; then
     admin_redirect=$(input_value redirect "$admin_login")
     admin_sid_field=$(input_value sid "$admin_login")
     admin_credential=$(input_value credential "$admin_login")
+    admin_action=$(form_action_url login "$admin_login")
+    admin_hidden=$(hidden_form_data login "$admin_login")
     [[ $admin_sid_field =~ ^[0-9a-f]{32}$ ]]
     [[ $admin_credential =~ ^[0-9a-f]{32}$ ]]
+    [[ $admin_creation =~ ^[0-9]+$ ]]
+    test -n "$admin_token"
+    test -n "$admin_redirect"
+    if test "$admin_sid_field" != "$sid" || \
+            test "$(session_cookie_sid)" != "$admin_sid_field"; then
+        echo 'phpbb_admin_login_error=session-state-mismatch' >&2
+        exit 1
+    fi
+    admin_form_salt=$(mysql --batch --skip-column-names phpbb \
+        --execute="SELECT user_form_salt FROM phpbb_users WHERE username_clean='admin'")
+    admin_expected_token=$(printf '%s%s%s' \
+        "$admin_creation" "$admin_form_salt" login | sha1sum | awk '{print $1}')
+    if test "$admin_token" != "$admin_expected_token"; then
+        echo 'phpbb_admin_login_error=rendered-token-mismatch' >&2
+        exit 1
+    fi
     curl "${curl_common[@]}" --location -b "$cookies" -c "$cookies" \
+        --data "$admin_hidden" \
         --data-urlencode username=admin \
         --data-urlencode "password_$admin_credential=$TKL_TEST_APP_PASS" \
         --data-urlencode login=Login \
-        --data-urlencode "sid=$admin_sid_field" \
-        --data-urlencode "credential=$admin_credential" \
-        --data-urlencode "redirect=$admin_redirect" \
-        --data-urlencode "creation_time=$admin_creation" \
-        --data-urlencode "form_token=$admin_token" \
-        "$base_url/adm/index.php?sid=$sid" >"$admin_auth_result"
+        "$admin_action" >"$admin_auth_result"
     if grep -Fq 'The submitted form was invalid' "$admin_auth_result"; then
         echo 'phpbb_admin_login_error=form-rejected' >&2
         exit 1
