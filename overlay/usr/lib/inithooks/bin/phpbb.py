@@ -77,6 +77,7 @@ def main():
 
     inithooks_cache.write('APP_DOMAIN', domain)
 
+    m = MySQL()
     cookie_domain = domain[4:] if domain.lower().startswith('www.') else domain
     for name, value in (
             ('server_name', domain),
@@ -97,7 +98,6 @@ def main():
     if not hashpass:
         raise RuntimeError('phpBB password hashing returned an empty value')
 
-    m = MySQL()
     m.execute('UPDATE phpbb.phpbb_users SET user_email=%s WHERE username=\"admin\";', (email,))
     m.execute('UPDATE phpbb.phpbb_users SET user_password=%s WHERE username=\"admin\";', (hashpass,))
 
