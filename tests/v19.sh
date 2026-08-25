@@ -58,7 +58,8 @@ PY
 form_action_url() {
     local form_id=$1
     local file=$2
-    python3 - "$form_id" "$file" "$base_url/" <<'PY'
+    local current_url=${3:-}
+    python3 - "$form_id" "$file" "$base_url/" "$current_url" <<'PY'
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 import sys
@@ -66,21 +67,25 @@ import sys
 
 class FormFinder(HTMLParser):
     action = None
+    found = False
 
     def handle_starttag(self, tag, attrs):
-        if tag != "form" or self.action is not None:
+        if tag != "form" or self.found:
             return
         fields = dict(attrs)
         if fields.get("id") == sys.argv[1]:
+            self.found = True
             self.action = fields.get("action", "")
 
 
 parser = FormFinder()
 with open(sys.argv[2], encoding="utf-8") as source:
     parser.feed(source.read())
-if not parser.action:
+if not parser.found:
+    raise SystemExit(f"missing form {sys.argv[1]} in {sys.argv[2]}")
+if not parser.action and not sys.argv[4]:
     raise SystemExit(f"missing action for form {sys.argv[1]} in {sys.argv[2]}")
-print(urljoin(sys.argv[3], parser.action))
+print(urljoin(sys.argv[3], parser.action or sys.argv[4]))
 PY
 }
 
@@ -127,6 +132,36 @@ session_cookie_sid() {
         $6 ~ /^phpbb3_.*_sid$/ { value = $7 }
         END { if (value == "") exit 1; print value }
     ' "$cookies"
+}
+
+forum_manage_url() {
+    local file=$1
+    python3 - "$file" "$base_url/adm/" <<'PY'
+from html.parser import HTMLParser
+from urllib.parse import parse_qs, urljoin, urlparse
+import sys
+
+
+class ForumLinkFinder(HTMLParser):
+    href = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a" or self.href is not None:
+            return
+        href = dict(attrs).get("href", "")
+        query = parse_qs(urlparse(href).query)
+        if (query.get("mode") == ["manage"]
+                and any("forum" in value for value in query.get("i", []))):
+            self.href = href
+
+
+parser = ForumLinkFinder()
+with open(sys.argv[1], encoding="utf-8") as source:
+    parser.feed(source.read())
+if not parser.href:
+    raise SystemExit(f"missing Forum Administration link in {sys.argv[1]}")
+print(urljoin(sys.argv[2], parser.href))
+PY
 }
 
 admin_sid() {
@@ -282,13 +317,13 @@ stamp=$(date +%s)-$$
 forum_name=phpbb-v19-forum-$stamp
 topic_subject=phpbb-v19-topic-$stamp
 topic_body=phpbb-v19-body-$stamp
-forum_url="$base_url/adm/index.php?i=acp_forums&mode=manage&action=add&parent_id=0&forum_name=$forum_name&sid=$sid"
+forum_url="$(forum_manage_url "$admin_result")&action=add&parent_id=0"
 
 printf '%s\n' phpbb_check=forum-create
 curl "${curl_common[@]}" -b "$cookies" -c "$cookies" "$forum_url" >"$forum_form"
 forum_creation=$(input_value creation_time "$forum_form")
 forum_token=$(input_value form_token "$forum_form")
-forum_action=$(form_action_url forumedit "$forum_form")
+forum_action=$(form_action_url forumedit "$forum_form" "$forum_url")
 forum_hidden=$(hidden_form_data forumedit "$forum_form")
 [[ $forum_creation =~ ^[0-9]+$ ]]
 test -n "$forum_token"
