@@ -77,6 +77,7 @@ def main():
 
     inithooks_cache.write('APP_DOMAIN', domain)
 
+    subprocess.run(['systemctl', 'start', 'mariadb'], check=True)
     m = MySQL()
     cookie_domain = domain[4:] if domain.lower().startswith('www.') else domain
     for name, value in (
