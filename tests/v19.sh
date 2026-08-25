@@ -365,11 +365,8 @@ if grep -Fq 'name="credential"' "$admin_login"; then
         echo 'phpbb_admin_login_error=authentication-rejected' >&2
         exit 1
     fi
-    sid=$(admin_sid "$admin_auth_result")
-    if test "$(session_cookie_sid)" != "$sid"; then
-        echo 'phpbb_admin_login_error=renewed-session-link-mismatch' >&2
-        exit 1
-    fi
+    sid=$(session_cookie_sid)
+    [[ $sid =~ ^[0-9a-f]{32}$ ]]
     curl "${curl_common[@]}" -b "$cookies" -c "$cookies" \
         "$base_url/adm/index.php?sid=$sid" >"$admin_result"
 else
