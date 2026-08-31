@@ -12,7 +12,7 @@ and on top of that:
 
 - phpBB configurations:
    
-   - Installed from upstream source to /var/www/phpbb.
+   - Installed from upstream source to /var/www/phpBB.
    - Uploading of avatars is supported, and enabled by default.
    - Setup an example forum, including welcome post displaying default
      login credentials.

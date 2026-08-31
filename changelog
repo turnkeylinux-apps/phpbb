@@ -1,3 +1,16 @@
+turnkey-phpbb-19.0 (1) turnkey; urgency=low
+
+  * Update phpBB to the official 3.3.17 release and verify the source archive
+    against its published SHA-256 checksum.
+
+  * Port the installer, Apache configuration, and firstboot password handling
+    to Debian 13/Trixie, PHP 8.4, and MariaDB 11.8.
+
+  * Add an HTTPS-only check for the latest stable phpBB release and its
+    official package checksum.
+
+ -- Jeremy Davis <jeremy@turnkeylinux.org>  Tue, 25 Aug 2026 00:00:00 +0000
+
 turnkey-phpbb-18.0 (1) turnkey; urgency=low
 
   * Install latest upstream version of phpBB: 3.3.11.
